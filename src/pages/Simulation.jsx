@@ -206,6 +206,7 @@ export default function Simulation() {
   const navigate = useNavigate();
   const selectedCase = location.state;
   
+  // All hooks must be called in the same order every time
   const [currentIndex, setCurrentIndex] = useState(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [speed, setSpeed] = useState(1);
@@ -223,7 +224,84 @@ export default function Simulation() {
     [selectedCase]
   );
 
-  // If no case is selected, show a message to select one
+  // Monitor state changes
+  useEffect(() => {
+    console.log('State changed:', { showPreview, simulationStarted, currentIndex });
+  }, [showPreview, simulationStarted, currentIndex]);
+
+  // Add all missing hooks that are used later in the component
+  const intervalRef = useRef();
+  const maxIndex = candles.length - 1;
+  
+  // Calculate current portfolio value
+  const currentPrice = candles[currentIndex]?.y[3] || stock.basePrice;
+  const portfolioValue = cash + (position * currentPrice);
+  const totalPnL = realizedPnL + unrealizedPnL;
+
+  // Playback control effect
+  useEffect(() => {
+    if (isPlaying) {
+      intervalRef.current = setInterval(() => {
+        setCurrentIndex(idx => {
+          if (idx < maxIndex) return idx + 1;
+          setIsPlaying(false);
+          return idx;
+        });
+      }, 1000 / speed);
+    } else if (intervalRef.current) {
+      clearInterval(intervalRef.current);
+    }
+    return () => clearInterval(intervalRef.current);
+  }, [isPlaying, speed, maxIndex]);
+
+  // Update unrealized P&L when price changes
+  useEffect(() => {
+    if (position !== 0) {
+      const avgPrice = trades.length > 0 ? 
+        trades.filter(t => t.action === 'BUY').reduce((sum, t) => sum + t.price, 0) / 
+        trades.filter(t => t.action === 'BUY').length : currentPrice;
+      setUnrealizedPnL(position * (currentPrice - avgPrice));
+    } else {
+      setUnrealizedPnL(0);
+    }
+  }, [currentPrice, position, trades]);
+
+  // Prepare for backend integration: send trades to backend on simulation end
+  useEffect(() => {
+    if (currentIndex === maxIndex && trades.length > 0) {
+      console.log('Simulation ended. Final results:', {
+        case: selectedCase?.title,
+        stock: stock.symbol,
+        trades,
+        finalPortfolioValue: portfolioValue,
+        totalPnL,
+        realizedPnL,
+        unrealizedPnL
+      });
+    }
+  }, [currentIndex, maxIndex, trades, portfolioValue, totalPnL, realizedPnL, unrealizedPnL, stock, selectedCase]);
+
+  // Function to start simulation
+  const handleStartSimulation = () => {
+    console.log('Starting simulation...');
+    
+    // Reset all states first
+    setShowPreview(false);
+    setSimulationStarted(false);
+    setCurrentIndex(0);
+    
+    // Then set the correct states
+    setTimeout(() => {
+      setSimulationStarted(true);
+      setCurrentIndex(50); // Start from manipulation period
+      console.log('States updated:', { showPreview: false, simulationStarted: true, currentIndex: 50 });
+    }, 50);
+  };
+
+  // Debug state
+  console.log('Current state:', { showPreview, simulationStarted, currentIndex });
+  
+  // Conditional rendering - must come after all hooks
   if (!selectedCase) {
     return (
       <div className="min-h-screen bg-gray-50 flex items-center justify-center">
@@ -242,9 +320,9 @@ export default function Simulation() {
       </div>
     );
   }
-
+  
   // Show preview mode before simulation starts
-  if (showPreview && !simulationStarted) {
+  if (showPreview) {
     const historicalData = candles.slice(0, 50); // First 50 points are historical
     const historicalVolume = volumeData.slice(0, 50);
     
@@ -270,14 +348,25 @@ export default function Simulation() {
                   Back to Cases
                 </button>
                 <button
-                  onClick={() => {
-                    setShowPreview(false);
-                    setSimulationStarted(true);
-                    setCurrentIndex(50); // Start from manipulation period
-                  }}
+                  onClick={handleStartSimulation}
                   className="px-6 py-2 bg-indigo-600 text-white rounded-lg hover:bg-indigo-700 transition-colors"
                 >
                   Start Simulation
+                </button>
+                <button
+                  onClick={handleStartSimulation}
+                  className="px-4 py-2 bg-gray-600 text-white rounded-lg hover:bg-gray-700 transition-colors text-sm"
+                >
+                  Skip Preview
+                </button>
+                <button
+                  onClick={() => {
+                    console.log('Current state:', { showPreview, simulationStarted, currentIndex });
+                    alert(`State: showPreview=${showPreview}, simulationStarted=${simulationStarted}, currentIndex=${currentIndex}`);
+                  }}
+                  className="px-4 py-2 bg-red-600 text-white rounded-lg hover:bg-red-700 transition-colors text-sm"
+                >
+                  Debug State
                 </button>
               </div>
             </div>
@@ -336,41 +425,6 @@ export default function Simulation() {
       </div>
     );
   }
-  
-  const maxIndex = candles.length - 1;
-  const intervalRef = useRef();
-
-  // Calculate current portfolio value
-  const currentPrice = candles[currentIndex]?.y[3] || stock.basePrice;
-  const portfolioValue = cash + (position * currentPrice);
-  const totalPnL = realizedPnL + unrealizedPnL;
-
-  useEffect(() => {
-    if (isPlaying) {
-      intervalRef.current = setInterval(() => {
-        setCurrentIndex(idx => {
-          if (idx < maxIndex) return idx + 1;
-          setIsPlaying(false);
-          return idx;
-        });
-      }, 1000 / speed);
-    } else if (intervalRef.current) {
-      clearInterval(intervalRef.current);
-    }
-    return () => clearInterval(intervalRef.current);
-  }, [isPlaying, speed, maxIndex]);
-
-  // Update unrealized P&L when price changes
-  useEffect(() => {
-    if (position !== 0) {
-      const avgPrice = trades.length > 0 ? 
-        trades.filter(t => t.action === 'BUY').reduce((sum, t) => sum + t.price, 0) / 
-        trades.filter(t => t.action === 'BUY').length : currentPrice;
-      setUnrealizedPnL(position * (currentPrice - avgPrice));
-    } else {
-      setUnrealizedPnL(0);
-    }
-  }, [currentPrice, position, trades]);
 
   const handlePlayPause = () => setIsPlaying(p => !p);
   
@@ -451,21 +505,6 @@ export default function Simulation() {
     setRealizedPnL(0);
     setUnrealizedPnL(0);
   };
-
-  // Prepare for backend integration: send trades to backend on simulation end
-  useEffect(() => {
-    if (currentIndex === maxIndex && trades.length > 0) {
-      console.log('Simulation ended. Final results:', {
-        case: selectedCase?.title,
-        stock: stock.symbol,
-        trades,
-        finalPortfolioValue: portfolioValue,
-        totalPnL,
-        realizedPnL,
-        unrealizedPnL
-      });
-    }
-  }, [currentIndex, maxIndex, trades, portfolioValue, totalPnL, realizedPnL, unrealizedPnL, stock, selectedCase]);
 
   return (
     <div className="min-h-screen bg-gray-50 p-6">
