@@ -6,6 +6,7 @@ import CaseLibrary from './pages/CaseLibrary.jsx';
 import Simulation from './pages/Simulation.jsx';
 import Feedback from './pages/Feedback.jsx';
 import News from './pages/News.jsx';
+import Presentation from './pages/Presentation.jsx';
 
 function App() {
   return (
@@ -14,10 +15,11 @@ function App() {
         <NavBar />
         <Routes>
           <Route path="/" element={<Home />} />
-          <Route path="/cases" element={<CaseLibrary />} />
-          <Route path="/simulation" element={<Simulation />} />
-          <Route path="/feedback" element={<Feedback />} />
-          <Route path="/news" element={<News />} />
+                  <Route path="/cases" element={<CaseLibrary />} />
+        <Route path="/simulation" element={<Simulation />} />
+        <Route path="/feedback" element={<Feedback />} />
+        <Route path="/news" element={<News />} />
+        <Route path="/presentation" element={<Presentation />} />
         </Routes>
       </div>
     </Router>
