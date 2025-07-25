@@ -1,21 +1,27 @@
 import React, { useEffect, useRef, useState } from 'react';
 import ApexCharts from 'react-apexcharts';
 
-export default function SimulationChart({ candles, currentIndex, selectedCase, stock }) {
+export default function SimulationChart({ candles, currentIndex, selectedCase, stock, volumeData, isPreview = false }) {
   // Only show up to currentIndex for progressive reveal
   const displayedCandles = candles.slice(0, currentIndex + 1);
+  const displayedVolume = volumeData ? volumeData.slice(0, currentIndex + 1) : [];
 
   const series = [
     {
       name: 'Price',
       data: displayedCandles,
     },
+    {
+      name: 'Volume',
+      data: displayedVolume,
+      type: 'column',
+    },
   ];
 
   const options = {
     chart: {
       type: 'candlestick',
-      height: 400,
+      height: 500,
       toolbar: { 
         show: false 
       },
@@ -24,6 +30,7 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
       },
       background: 'transparent',
       fontFamily: 'Inter, system-ui, sans-serif',
+      stacked: false,
     },
     plotOptions: {
       candlestick: {
@@ -34,6 +41,10 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
         wick: {
           useFillColor: true,
         },
+      },
+      bar: {
+        horizontal: false,
+        columnWidth: '70%',
       },
     },
     xaxis: {
@@ -57,21 +68,53 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
         color: '#E5E7EB',
       },
     },
-    yaxis: {
-      labels: {
-        style: {
-          colors: '#6B7280',
-          fontSize: '12px',
+    yaxis: [
+      {
+        title: {
+          text: 'Price (₹)',
+          style: {
+            color: '#6B7280',
+            fontSize: '12px',
+          },
         },
-        formatter: (value) => `₹${value.toLocaleString('en-IN')}`,
+        labels: {
+          style: {
+            colors: '#6B7280',
+            fontSize: '12px',
+          },
+          formatter: (value) => `₹${value.toLocaleString('en-IN')}`,
+        },
+        axisBorder: {
+          color: '#E5E7EB',
+        },
+        axisTicks: {
+          color: '#E5E7EB',
+        },
       },
-      axisBorder: {
-        color: '#E5E7EB',
+      {
+        opposite: true,
+        title: {
+          text: 'Volume',
+          style: {
+            color: '#6B7280',
+            fontSize: '12px',
+          },
+        },
+        labels: {
+          style: {
+            colors: '#6B7280',
+            fontSize: '12px',
+          },
+          formatter: (value) => `${(value / 1000000).toFixed(1)}M`,
+        },
+        axisBorder: {
+          color: '#E5E7EB',
+        },
+        axisTicks: {
+          color: '#E5E7EB',
+        },
       },
-      axisTicks: {
-        color: '#E5E7EB',
-      },
-    },
+    ],
     grid: {
       borderColor: '#E5E7EB',
       strokeDashArray: 4,
@@ -82,18 +125,22 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
       style: {
         fontSize: '12px',
       },
-      y: {
-        formatter: (value) => `₹${value.toLocaleString('en-IN')}`,
-      },
+      shared: true,
+      intersect: false,
       custom: function({ series, seriesIndex, dataPointIndex, w }) {
-        const data = w.globals.initialSeries[seriesIndex].data[dataPointIndex];
-        if (!data) return '';
+        const priceData = w.globals.initialSeries[0].data[dataPointIndex];
+        const volumeData = w.globals.initialSeries[1]?.data[dataPointIndex];
         
-        const [open, high, low, close] = data.y;
-        const date = new Date(data.x).toLocaleTimeString([], { 
+        if (!priceData) return '';
+        
+        const [open, high, low, close] = priceData.y;
+        const date = new Date(priceData.x).toLocaleTimeString([], { 
           hour: '2-digit', 
           minute: '2-digit' 
         });
+        
+        const volume = volumeData ? volumeData.y : 0;
+        const volumeInM = (volume / 1000000).toFixed(1);
         
         return `
           <div class="bg-white border border-gray-200 rounded-lg shadow-lg p-3">
@@ -115,13 +162,21 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
                 <span class="text-gray-600">Close:</span>
                 <span class="font-medium">₹${close.toLocaleString('en-IN')}</span>
               </div>
+              <div class="flex justify-between border-t pt-1 mt-1">
+                <span class="text-gray-600">Volume:</span>
+                <span class="font-medium text-blue-600">${volumeInM}M shares</span>
+              </div>
             </div>
           </div>
         `;
       }
     },
     title: {
-      text: selectedCase ? `${selectedCase.title} - Market Simulation` : `${stock?.symbol || 'STOCK'} - ${stock?.name || 'Indian Stock'} Simulation`,
+      text: isPreview 
+        ? `Historical Analysis: ${selectedCase?.title || 'Market Data'}`
+        : selectedCase 
+          ? `${selectedCase.title} - Live Simulation` 
+          : `${stock?.symbol || 'STOCK'} - ${stock?.name || 'Indian Stock'} Simulation`,
       align: 'left',
       style: {
         fontSize: '18px',
@@ -130,7 +185,9 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
       },
     },
     subtitle: {
-      text: `Progress: ${currentIndex + 1} / ${candles.length} candles`,
+      text: isPreview 
+        ? `Historical data (${candles.length} candles) - Study patterns before manipulation`
+        : `Live simulation: ${currentIndex + 1} / ${candles.length} candles`,
       align: 'left',
       style: {
         fontSize: '14px',
@@ -154,10 +211,15 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
         <div className="flex items-center justify-between">
           <div>
             <h3 className="text-lg font-semibold text-gray-800">
-              {stock?.symbol || 'STOCK'} Price Chart
+              {isPreview ? 'Historical Price & Volume Analysis' : `${stock?.symbol || 'STOCK'} Live Chart`}
             </h3>
             <p className="text-sm text-gray-600">
-              {selectedCase ? 'Real-time market data simulation' : `${stock?.name || 'Indian Stock'} - Interactive candlestick chart`}
+              {isPreview 
+                ? 'Study price movement and volume patterns before the manipulation event'
+                : selectedCase 
+                  ? 'Real-time market data simulation with volume analysis'
+                  : `${stock?.name || 'Indian Stock'} - Interactive candlestick chart with volume`
+              }
             </p>
           </div>
           <div className="flex items-center space-x-4">
@@ -172,12 +234,22 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
                 ₹{displayedCandles.length > 0 ? displayedCandles[displayedCandles.length - 1].y[3].toLocaleString('en-IN') : '0'}
               </span>
             </div>
-            <div className="text-sm text-gray-600">
-              <span className="font-medium">Progress:</span>
-              <span className="ml-1 font-bold text-indigo-600">
-                {Math.round(((currentIndex + 1) / candles.length) * 100)}%
-              </span>
-            </div>
+            {!isPreview && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Progress:</span>
+                <span className="ml-1 font-bold text-indigo-600">
+                  {Math.round(((currentIndex + 1) / candles.length) * 100)}%
+                </span>
+              </div>
+            )}
+            {displayedVolume.length > 0 && (
+              <div className="text-sm text-gray-600">
+                <span className="font-medium">Volume:</span>
+                <span className="ml-1 font-bold text-blue-600">
+                  {((displayedVolume[displayedVolume.length - 1]?.y || 0) / 1000000).toFixed(1)}M
+                </span>
+              </div>
+            )}
           </div>
         </div>
       </div>
@@ -187,22 +259,24 @@ export default function SimulationChart({ candles, currentIndex, selectedCase, s
           options={options} 
           series={series} 
           type="candlestick" 
-          height={400} 
+          height={500} 
         />
         
-        {/* Progress indicator */}
-        <div className="mt-4">
-          <div className="flex justify-between text-xs text-gray-500 mb-1">
-            <span>0%</span>
-            <span>100%</span>
+        {/* Progress indicator - only show in simulation mode */}
+        {!isPreview && (
+          <div className="mt-4">
+            <div className="flex justify-between text-xs text-gray-500 mb-1">
+              <span>0%</span>
+              <span>100%</span>
+            </div>
+            <div className="w-full bg-gray-200 rounded-full h-2">
+              <div 
+                className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
+                style={{ width: `${((currentIndex + 1) / candles.length) * 100}%` }}
+              ></div>
+            </div>
           </div>
-          <div className="w-full bg-gray-200 rounded-full h-2">
-            <div 
-              className="bg-indigo-600 h-2 rounded-full transition-all duration-300"
-              style={{ width: `${((currentIndex + 1) / candles.length) * 100}%` }}
-            ></div>
-          </div>
-        </div>
+        )}
       </div>
     </div>
   );

@@ -8,8 +8,8 @@ export default function CaseLibrary() {
   const navigate = useNavigate();
 
   const handleStartSimulation = (c) => {
-    // Pass case ID to simulation page (could use state, context, or params)
-    navigate('/simulation', { state: { caseId: c._id } });
+    // Pass the full case object to simulation page
+    navigate('/simulation', { state: c });
   };
 
   return (
